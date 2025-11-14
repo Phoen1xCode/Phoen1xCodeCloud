@@ -2,7 +2,10 @@ package handlers
 
 import (
 	"fmt"
+	"log"
 	"net/http"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -11,6 +14,21 @@ import (
 	"github.com/phoen1xcode/phoen1xcodecloud/pkg/utils"
 	"gorm.io/gorm"
 )
+
+const (
+	maxFileSize         = 100 * 1024 * 1024 // 100MB
+	maxTextContentSize  = 1024 * 1024       // 1MB
+)
+
+var allowedFileExtensions = map[string]bool{
+	".txt": true, ".pdf": true, ".doc": true, ".docx": true,
+	".jpg": true, ".jpeg": true, ".png": true, ".gif": true,
+	".zip": true, ".tar": true, ".gz": true,
+	".mp4": true, ".mp3": true, ".wav": true,
+	".csv": true, ".json": true, ".xml": true,
+	".go": true, ".js": true, ".py": true, ".java": true,
+	".html": true, ".css": true, ".md": true,
+}
 
 type ShareHandler struct {
 	db      *gorm.DB
@@ -29,7 +47,24 @@ func (h *ShareHandler) UploadFile(c *gin.Context) {
 		return
 	}
 
-	shareCode, _ := utils.GenerateShareCode()
+	// Validate file size
+	if file.Size > maxFileSize {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("File size exceeds maximum allowed size of %d MB", maxFileSize/(1024*1024))})
+		return
+	}
+
+	// Validate file extension
+	ext := strings.ToLower(filepath.Ext(file.Filename))
+	if !allowedFileExtensions[ext] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "File type not allowed"})
+		return
+	}
+
+	shareCode, err := utils.GenerateShareCode()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate share code"})
+		return
+	}
 	key := fmt.Sprintf("%d/%s/%s", userID, shareCode, file.Filename)
 
 	src, err := file.Open()
@@ -72,7 +107,17 @@ func (h *ShareHandler) CreateTextShare(c *gin.Context) {
 		return
 	}
 
-	shareCode, _ := utils.GenerateShareCode()
+	// Validate text content size
+	if len(req.Content) > maxTextContentSize {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Text content exceeds maximum allowed size of %d KB", maxTextContentSize/1024)})
+		return
+	}
+
+	shareCode, err := utils.GenerateShareCode()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate share code"})
+		return
+	}
 	share := models.Share{
 		ShareCode:   shareCode,
 		UserID:      userID,
@@ -143,9 +188,15 @@ func (h *ShareHandler) DeleteShare(c *gin.Context) {
 	}
 
 	if share.Type == "file" {
-		h.storage.Delete(c.Request.Context(), share.FilePath)
+		if err := h.storage.Delete(c.Request.Context(), share.FilePath); err != nil {
+			log.Printf("Failed to delete file from storage: %v", err)
+			// Continue with database deletion even if storage deletion fails
+		}
 	}
 
-	h.db.Delete(&share)
+	if err := h.db.Delete(&share).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete share"})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "Share deleted"})
 }

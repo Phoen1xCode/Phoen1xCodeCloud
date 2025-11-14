@@ -48,7 +48,11 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	token, _ := utils.GenerateToken(user.ID, user.IsAdmin, h.jwtSecret)
+	token, err := utils.GenerateToken(user.ID, user.IsAdmin, h.jwtSecret)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+		return
+	}
 	c.JSON(http.StatusCreated, gin.H{"token": token, "user": user})
 }
 
@@ -74,6 +78,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	token, _ := utils.GenerateToken(user.ID, user.IsAdmin, h.jwtSecret)
+	token, err := utils.GenerateToken(user.ID, user.IsAdmin, h.jwtSecret)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"token": token, "user": user})
 }

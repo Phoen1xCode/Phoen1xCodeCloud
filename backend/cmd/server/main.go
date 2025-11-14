@@ -2,6 +2,9 @@ package main
 
 import (
 	"log"
+	"os"
+	"strings"
+	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -37,13 +40,25 @@ func main() {
 	}
 
 	r := gin.Default()
+	
+	// Configure CORS with specific allowed origins
+	allowedOrigins := []string{"http://localhost:3000", "http://localhost:5173"}
+	if envOrigins := os.Getenv("CORS_ALLOWED_ORIGINS"); envOrigins != "" {
+		allowedOrigins = strings.Split(envOrigins, ",")
+	}
+	
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"*"},
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE"},
+		AllowOrigins:     allowedOrigins,
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
-		ExposeHeaders:    []string{"Content-Length"},
+		ExposeHeaders:    []string{"Content-Length", "Content-Disposition"},
 		AllowCredentials: true,
+		MaxAge:           86400, // 24 hours
 	}))
+	
+	// Add rate limiting: 100 requests per minute per IP
+	rateLimiter := middleware.NewRateLimiter(100, time.Minute)
+	r.Use(rateLimiter.Middleware())
 
 	authHandler := handlers.NewAuthHandler(db, cfg.JWTSecret)
 	shareHandler := handlers.NewShareHandler(db, stor)

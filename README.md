@@ -147,7 +147,8 @@ npm run dev
 |----------|-------------|---------|
 | `SERVER_PORT` | Backend server port | `8080` |
 | `DATABASE_URL` | PostgreSQL connection string | - |
-| `JWT_SECRET` | Secret key for JWT tokens | - |
+| `JWT_SECRET` | **Required**: Strong secret key (min 32 chars) | - |
+| `CORS_ALLOWED_ORIGINS` | Comma-separated allowed origins | `http://localhost:3000,http://localhost:5173` |
 | `STORAGE_TYPE` | Storage backend (`local` or `s3`) | `local` |
 | `LOCAL_STORAGE_PATH` | Local file storage path | `./uploads` |
 | `S3_BUCKET` | S3 bucket name | - |
@@ -193,10 +194,14 @@ S3_SECRET_KEY=your-r2-secret-key
 ## Security Features
 
 - **Password Hashing**: bcrypt with default cost
-- **JWT Authentication**: 24-hour token expiration
-- **CORS Protection**: Configurable origins
+- **JWT Authentication**: 24-hour token expiration with strong secret enforcement (min 32 chars)
+- **CORS Protection**: Configurable allowed origins (no wildcards in production)
 - **SQL Injection Prevention**: GORM parameterized queries
 - **Admin Authorization**: Middleware-based access control
+- **Path Traversal Protection**: File path sanitization and validation
+- **Rate Limiting**: 100 requests per minute per IP address
+- **File Upload Validation**: Size limits (100MB) and type restrictions
+- **Error Handling**: All errors properly handled and logged
 
 ## Production Deployment
 
@@ -220,14 +225,16 @@ docker-compose -f docker-compose.yml up -d --build
 
 ### Security Recommendations
 
-1. Change `JWT_SECRET` to a strong random value
-2. Use HTTPS in production
-3. Configure proper CORS origins
-4. Set up database backups
-5. Use environment-specific configurations
-6. Enable rate limiting
-7. Implement file size limits
-8. Add virus scanning for uploads
+1. **Generate a strong JWT_SECRET**: `openssl rand -base64 32` (required, minimum 32 characters)
+2. **Use HTTPS in production**: Set up SSL/TLS certificates
+3. **Configure CORS origins**: Set `CORS_ALLOWED_ORIGINS` to your production domain
+4. **Set up database backups**: Regular automated backups
+5. **Use environment-specific configurations**: Separate configs for dev/staging/prod
+6. **Monitor rate limiting**: Adjust limits based on your traffic patterns
+7. **Add virus scanning**: Integrate with ClamAV or similar for uploaded files
+8. **Enable logging**: Set up centralized logging and monitoring
+9. **Regular updates**: Keep dependencies updated for security patches
+10. **Security headers**: Add security headers in nginx/reverse proxy
 
 ## Development
 
